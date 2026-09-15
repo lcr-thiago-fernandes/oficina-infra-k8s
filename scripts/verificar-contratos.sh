@@ -4,7 +4,7 @@
 # um `terraform validate` verde NAO pega uma rota a mais ou um nome de SSM a menos.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 TF_DIR="terraform"
 falhas=0
 
@@ -50,7 +50,9 @@ for ssm in '/network/vpc_id' '/network/private_subnet_ids' '/network/eks_node_sg
     erro "SSM /oficina${ssm} nao encontrado em ${TF_DIR}/ssm.tf."
   fi
 done
-if ! grep -n -A3 'private_subnet_ids' "$TF_DIR/ssm.tf" | grep -q 'type        = "StringList"'; then
+if grep -n -A3 'private_subnet_ids' "$TF_DIR/ssm.tf" | grep -q 'type        = "StringList"'; then
+  ok "/oficina/network/private_subnet_ids e StringList."
+else
   erro "/oficina/network/private_subnet_ids precisa ser StringList."
 fi
 
@@ -67,17 +69,41 @@ if grep -rn --include='*.tf' -E 'secret_string[[:space:]]*=[[:space:]]*jsonencod
 fi
 
 # 5. NodePorts do contrato com o oficina-app.
-grep -n -A3 'variable "nodeport_prd"' "$TF_DIR/variables.tf" | grep -q 'default     = 30080' && ok "nodeport_prd = 30080" || erro "nodeport_prd != 30080"
-grep -n -A3 'variable "nodeport_hml"' "$TF_DIR/variables.tf" | grep -q 'default     = 30081' && ok "nodeport_hml = 30081" || erro "nodeport_hml != 30081"
+if grep -n -A3 'variable "nodeport_prd"' "$TF_DIR/variables.tf" | grep -q 'default     = 30080'; then
+  ok "nodeport_prd = 30080"
+else
+  erro "nodeport_prd != 30080"
+fi
+if grep -n -A3 'variable "nodeport_hml"' "$TF_DIR/variables.tf" | grep -q 'default     = 30081'; then
+  ok "nodeport_hml = 30081"
+else
+  erro "nodeport_hml != 30081"
+fi
 
 # 6. Throttling de /auth/* (requisito do oficina-lambda-auth: 10 rps / burst 20).
-grep -n -F '"POST /auth/cliente", "POST /auth/admin"' "$TF_DIR/apigw.tf" >/dev/null && ok "route_settings para POST /auth/*" || erro "route_settings de POST /auth/* ausente."
-grep -n -A3 'variable "throttling_auth_rate_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 10' && ok "throttling_auth_rate_limit = 10" || erro "throttling_auth_rate_limit != 10"
-grep -n -A3 'variable "throttling_auth_burst_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 20' && ok "throttling_auth_burst_limit = 20" || erro "throttling_auth_burst_limit != 20"
+if grep -n -F '"POST /auth/cliente", "POST /auth/admin"' "$TF_DIR/apigw.tf" >/dev/null; then
+  ok "route_settings para POST /auth/*"
+else
+  erro "route_settings de POST /auth/* ausente."
+fi
+if grep -n -A3 'variable "throttling_auth_rate_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 10'; then
+  ok "throttling_auth_rate_limit = 10"
+else
+  erro "throttling_auth_rate_limit != 10"
+fi
+if grep -n -A3 'variable "throttling_auth_burst_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 20'; then
+  ok "throttling_auth_burst_limit = 20"
+else
+  erro "throttling_auth_burst_limit != 20"
+fi
 
 # 7. Roles OIDC com os nomes que os outros repositorios esperam.
 for role in 'gha-infra' 'gha-deploy' 'gha-lambda'; do
-  grep -rn --include='*.tf' -F "\"\${var.project}-${role}\"" "$TF_DIR" >/dev/null && ok "role oficina-${role}" || erro "role oficina-${role} nao referenciada."
+  if grep -rn --include='*.tf' -F "\"\${var.project}-${role}\"" "$TF_DIR" >/dev/null; then
+    ok "role oficina-${role}"
+  else
+    erro "role oficina-${role} nao referenciada."
+  fi
 done
 
 echo
