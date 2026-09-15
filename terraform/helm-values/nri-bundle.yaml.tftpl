@@ -1,0 +1,48 @@
+# Valores do nri-bundle (New Relic Kubernetes). Renderizado por templatefile():
+# $${...} e escape do Terraform e vira $${...} literal para o Fluent Bit.
+global:
+  cluster: ${cluster_name}
+  lowDataMode: true
+
+newrelic-infrastructure:
+  enabled: true
+  privileged: true
+
+kube-state-metrics:
+  enabled: true
+
+nri-kube-events:
+  enabled: true
+
+nri-metadata-injection:
+  enabled: true
+
+# Logs: o agente APM da API ja encaminha os logs da aplicacao (logs in context, trace.id).
+# Fluent Bit aqui cuida SO dos logs de sistema do cluster: os namespaces oficina-* ficam
+# fora (Exclude_Path), senao cada linha chega duas vezes e e cobrada duas vezes (design, secao 5).
+newrelic-logging:
+  enabled: true
+  lowDataMode: true
+  fluentBit:
+    config:
+      inputs: |
+        [INPUT]
+            Name              tail
+            Alias             pod-logs-tailer
+            Tag               kube.*
+            Path              $${PATH}
+            Exclude_Path      /var/log/containers/*_oficina-hml_*.log,/var/log/containers/*_oficina-prd_*.log
+            multiline.parser  $${LOG_PARSER}
+            DB                $${FB_DB}
+            Mem_Buf_Limit     7MB
+            Skip_Long_Lines   On
+            Refresh_Interval  10
+
+newrelic-prometheus-agent:
+  enabled: false
+nri-prometheus:
+  enabled: false
+newrelic-pixie:
+  enabled: false
+pixie-chart:
+  enabled: false
