@@ -153,9 +153,10 @@ resource "aws_iam_role" "gha_lambda" {
 locals {
   tfstate_bucket = "oficina-tfstate-fiap-15soat"
   tfstate_lock   = "oficina-tfstate-lock"
-  # Task 7 substitui "*" por aws_apigatewayv2_api.oficina.id.
+  # Rotas, integracoes e authorizers vivem sob /apis/<id>/...; o GET em /apis/<id> e a leitura do proprio API.
   api_gateway_arns = [
-    "arn:aws:apigateway:${var.region}::/apis/*",
+    "arn:aws:apigateway:${var.region}::/apis/${aws_apigatewayv2_api.oficina.id}",
+    "arn:aws:apigateway:${var.region}::/apis/${aws_apigatewayv2_api.oficina.id}/*",
   ]
 }
 

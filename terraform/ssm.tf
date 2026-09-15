@@ -35,3 +35,24 @@ resource "aws_ssm_parameter" "eks_node_sg_id" {
   type        = "String"
   value       = module.eks.node_security_group_id
 }
+
+resource "aws_ssm_parameter" "apigw_api_id" {
+  name        = "/${var.project}/apigw/api_id"
+  description = "Id do HTTP API (o lambda-auth pendura /auth/*, o authorizer e ANY /api/v1/{proxy+} nele)."
+  type        = "String"
+  value       = aws_apigatewayv2_api.oficina.id
+}
+
+resource "aws_ssm_parameter" "apigw_vpc_link_id" {
+  name        = "/${var.project}/apigw/vpc_link_id"
+  description = "Id do VPC Link para o NLB interno (informativo)."
+  type        = "String"
+  value       = aws_apigatewayv2_vpc_link.eks.id
+}
+
+resource "aws_ssm_parameter" "apigw_vpc_link_integration_id" {
+  name        = "/${var.project}/apigw/vpc_link_integration_id"
+  description = "Id da integracao HTTP_PROXY via VPC Link (alvo da rota protegida criada pelo lambda-auth)."
+  type        = "String"
+  value       = aws_apigatewayv2_integration.vpc_link.id
+}
