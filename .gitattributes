@@ -1,0 +1,2 @@
+# Sempre LF no repositorio e no checkout: scripts bash quebram com CRLF (Git Bash / runners Linux).
+* text=auto eol=lf
