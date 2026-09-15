@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "terraform"
+    directory: "/terraform"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "terraform"]
+    # Majors (aws 6, eks 21, vpc 6, helm 3) mudam sintaxe e sao decisao consciente (D11).
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/newrelic"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "terraform"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "github-actions"]

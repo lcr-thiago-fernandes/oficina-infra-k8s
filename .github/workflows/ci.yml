@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: fmt
+        run: terraform -chdir=terraform fmt -check -recursive
+      # -backend=false: valida sintaxe, tipos e modulos sem S3 nem credenciais. O plan e o CD.
+      - name: init (sem backend)
+        run: terraform -chdir=terraform init -backend=false
+      - name: validate
+        run: terraform -chdir=terraform validate
+
+  terraform-newrelic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: fmt
+        run: terraform -chdir=terraform/newrelic fmt -check -recursive
+      - name: init (sem backend)
+        run: terraform -chdir=terraform/newrelic init -backend=false
+      - name: validate
+        run: terraform -chdir=terraform/newrelic validate
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: bash -n
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+
+  contratos:
+    # Contratos com oficina-app, oficina-lambda-auth e oficina-infra-db (docs/contratos.md):
+    # rotas proibidas/obrigatorias, nomes de SSM, portas, throttling, roles. Um validate
+    # verde nao pega nada disso.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: verificar-contratos
+        run: ./scripts/verificar-contratos.sh

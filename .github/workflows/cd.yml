@@ -1,0 +1,117 @@
+name: CD
+
+# Infraestrutura tem ambiente unico (design, secao 7): develop -> plan; main -> apply.
+# Pre-requisito unico e manual: scripts/bootstrap.sh (bucket, lock, OIDC, role infra).
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: cd-infra-k8s
+  cancel-in-progress: false
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      # Variaveis do Terraform via TF_VAR_* (nao interpoladas em `run:`): segredos so chegam
+      # como ambiente, e valores sensiveis aparecem como (sensitive value) no plan.
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_newrelic_habilitado: ${{ vars.NEW_RELIC_HABILITADO || 'false' }}
+      TF_VAR_newrelic_license_key: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+      # Decisao D1: so pode virar true depois do primeiro apply do oficina-lambda-auth.
+      TF_VAR_throttling_auth_habilitado: ${{ vars.THROTTLING_AUTH_HABILITADO || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # So main e develop tem acao definida; qualquer outra ref (workflow_dispatch) falha alto.
+      - name: Definir acao
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_NAME" = "main" ]; then
+            echo "ACAO=apply" >> "$GITHUB_ENV"
+          elif [ "$REF_NAME" = "develop" ]; then
+            echo "ACAO=plan" >> "$GITHUB_ENV"
+          else
+            echo "ERRO: ref '$REF_NAME' nao tem acao de deploy (main=apply, develop=plan)." >&2
+            exit 1
+          fi
+
+      - name: Configurar credenciais AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform -chdir=terraform init -input=false
+
+      - name: Terraform plan
+        run: terraform -chdir=terraform plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        if: ${{ env.ACAO == 'apply' }}
+        run: terraform -chdir=terraform apply -input=false -auto-approve tfplan
+
+      # ARNs que viram secrets nos outros repositorios (nao sao segredos, mas o passo evita
+      # que alguem tenha de abrir o console): AWS_DEPLOY_ROLE_ARN (oficina-app) e
+      # AWS_LAMBDA_ROLE_ARN (oficina-lambda-auth).
+      - name: Outputs para os outros repositorios
+        if: ${{ env.ACAO == 'apply' }}
+        run: |
+          terraform -chdir=terraform output gha_deploy_role_arn
+          terraform -chdir=terraform output gha_lambda_role_arn
+          terraform -chdir=terraform output api_endpoint
+
+  newrelic:
+    # Decisao D9: dashboards/alertas so quando a conta existir (Variable NEW_RELIC_HABILITADO=true).
+    needs: infra
+    if: ${{ vars.NEW_RELIC_HABILITADO == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_VAR_newrelic_account_id: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
+      TF_VAR_newrelic_api_key: ${{ secrets.NEW_RELIC_API_KEY }}
+      TF_VAR_email_alertas: ${{ vars.NEW_RELIC_EMAIL_ALERTAS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir acao
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_NAME" = "main" ]; then
+            echo "ACAO=apply" >> "$GITHUB_ENV"
+          else
+            echo "ACAO=plan" >> "$GITHUB_ENV"
+          fi
+
+      # O state deste root tambem fica no S3: precisa das credenciais AWS.
+      - name: Configurar credenciais AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform -chdir=terraform/newrelic init -input=false
+
+      - name: Terraform plan
+        run: terraform -chdir=terraform/newrelic plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        if: ${{ env.ACAO == 'apply' }}
+        run: terraform -chdir=terraform/newrelic apply -input=false -auto-approve tfplan
