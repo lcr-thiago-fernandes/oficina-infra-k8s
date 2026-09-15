@@ -17,7 +17,8 @@ resource "helm_release" "metrics_server" {
 
 # New Relic Kubernetes (nri-bundle): infraestrutura, kube-state-metrics, eventos, logs de
 # sistema. Atras de var.newrelic_habilitado ate a conta existir. A license key vai como
-# set_sensitive (nao aparece no plan nem no state em claro no diff).
+# set_sensitive (mascara o valor na saida do plan/apply; o valor continua no state,
+# bucket criptografado).
 resource "helm_release" "nri_bundle" {
   count = var.newrelic_habilitado ? 1 : 0
 

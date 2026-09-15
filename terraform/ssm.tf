@@ -52,7 +52,7 @@ resource "aws_ssm_parameter" "apigw_vpc_link_id" {
 
 resource "aws_ssm_parameter" "apigw_vpc_link_integration_id" {
   name        = "/${var.project}/apigw/vpc_link_integration_id"
-  description = "Id da integracao HTTP_PROXY via VPC Link (alvo da rota protegida criada pelo lambda-auth)."
+  description = "Id da integracao HTTP_PROXY via VPC Link COM o mapeamento de contexto (X-Perfil/X-Sub/X-Documento), alvo da rota protegida criada pelo lambda-auth."
   type        = "String"
   value       = aws_apigatewayv2_integration.vpc_link.id
 }

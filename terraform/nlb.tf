@@ -44,6 +44,17 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_recebe_do_vpclink" {
   referenced_security_group_id = aws_security_group.vpclink.id
 }
 
+# Homologacao (:81) nao passa pelo API Gateway (decisao D3): so e alcancavel de dentro da
+# VPC (pods, port-forward, bastiao). Sem esta regra o listener hml nao aceitaria ninguem.
+resource "aws_vpc_security_group_ingress_rule" "nlb_hml_da_vpc" {
+  security_group_id = aws_security_group.nlb.id
+  description       = "Listener hml (:81) a partir da VPC"
+  ip_protocol       = "tcp"
+  from_port         = local.ambientes.hml.porta_listener
+  to_port           = local.ambientes.hml.porta_listener
+  cidr_ipv4         = module.vpc.vpc_cidr_block
+}
+
 resource "aws_vpc_security_group_egress_rule" "nlb_para_nos" {
   for_each = local.ambientes
 

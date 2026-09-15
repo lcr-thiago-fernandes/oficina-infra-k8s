@@ -61,10 +61,10 @@ resource "aws_apigatewayv2_vpc_link" "eks" {
   subnet_ids         = module.vpc.private_subnets
 }
 
-# Integracao unica com o listener de PRODUCAO do NLB. E esta integracao que o
-# oficina-lambda-auth usa como alvo da rota protegida (le o id em
-# /oficina/apigw/vpc_link_integration_id). O contexto do authorizer vira header
-# informativo — a API revalida o JWT por conta propria (defesa em profundidade).
+# Integracao com o listener de PRODUCAO do NLB, usada pela rota PROTEGIDA que o
+# oficina-lambda-auth cria (le o id em /oficina/apigw/vpc_link_integration_id). Mapeia o
+# contexto do authorizer em headers informativos — a API revalida o JWT por conta propria
+# (defesa em profundidade).
 resource "aws_apigatewayv2_integration" "vpc_link" {
   api_id                 = aws_apigatewayv2_api.oficina.id
   integration_type       = "HTTP_PROXY"
@@ -80,6 +80,20 @@ resource "aws_apigatewayv2_integration" "vpc_link" {
     "append:header.X-Sub"       = "$context.authorizer.sub"
     "append:header.X-Documento" = "$context.authorizer.documento"
   }
+}
+
+# Integracao das rotas PUBLICAS (sem authorizer): mesmo listener, sem o mapeamento de
+# $context.authorizer.* — nessas rotas o contexto nao existe e um mapeamento nao resolvido
+# poderia virar 500 em GET /health, justamente o sinal do alerta de uptime.
+resource "aws_apigatewayv2_integration" "vpc_link_publica" {
+  api_id                 = aws_apigatewayv2_api.oficina.id
+  integration_type       = "HTTP_PROXY"
+  integration_method     = "ANY"
+  integration_uri        = aws_lb_listener.api["prd"].arn
+  connection_type        = "VPC_LINK"
+  connection_id          = aws_apigatewayv2_vpc_link.eks.id
+  payload_format_version = "1.0"
+  timeout_milliseconds   = 29000
 }
 
 # Rotas SEM authorizer (as mais especificas vencem ANY /api/v1/{proxy+} do lambda-auth —
@@ -99,5 +113,5 @@ resource "aws_apigatewayv2_route" "publica" {
 
   api_id    = aws_apigatewayv2_api.oficina.id
   route_key = each.value
-  target    = "integrations/${aws_apigatewayv2_integration.vpc_link.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.vpc_link_publica.id}"
 }

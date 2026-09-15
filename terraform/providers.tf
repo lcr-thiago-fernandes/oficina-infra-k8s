@@ -7,27 +7,31 @@ provider "aws" {
   }
 }
 
-# Autenticacao dos providers kubernetes/helm derivada do cluster (lida em tempo de apply,
-# porque o name depende de module.eks). O token e da identidade que roda o apply — ela
+# Autenticacao dos providers kubernetes/helm por `aws eks get-token` (exec), o padrao do
+# modulo EKS: o token de data.aws_eks_cluster_auth vale ~15 min e expira antes de o node
+# group e os addons ficarem prontos num primeiro apply. Exige aws CLI v2 no PATH de quem
+# aplica (runner ubuntu-latest ja tem; local: ver README). A identidade que roda o apply
 # precisa estar nas access entries (decisao D8).
-data "aws_eks_cluster" "este" {
-  name = module.eks.cluster_name
-}
-
-data "aws_eks_cluster_auth" "este" {
-  name = module.eks.cluster_name
-}
-
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.este.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.este.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.este.token
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.region]
+  }
 }
 
 provider "helm" {
   kubernetes {
-    host                   = data.aws_eks_cluster.este.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.este.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.este.token
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.region]
+    }
   }
 }

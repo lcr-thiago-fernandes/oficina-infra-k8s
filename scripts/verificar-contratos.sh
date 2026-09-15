@@ -19,7 +19,7 @@ else
   ok "rota 'ANY /api/v1/{proxy+}' nao e criada aqui."
 fi
 # 1b. /auth/* so pode aparecer em route_settings do stage, nunca no mapa de rotas publicas.
-if awk '/rotas_publicas = \{/,/^  \}/' "$TF_DIR/apigw.tf" | grep -q '/auth/'; then
+if awk '/rotas_publicas = \{/,/^  \}/' "$TF_DIR/apigw.tf" | grep '/auth/' >/dev/null; then
   erro "rota /auth/* dentro de local.rotas_publicas; /auth/* pertence ao oficina-lambda-auth."
 else
   ok "nenhuma rota /auth/* em local.rotas_publicas."
@@ -50,7 +50,7 @@ for ssm in '/network/vpc_id' '/network/private_subnet_ids' '/network/eks_node_sg
     erro "SSM /oficina${ssm} nao encontrado em ${TF_DIR}/ssm.tf."
   fi
 done
-if grep -n -A3 'private_subnet_ids' "$TF_DIR/ssm.tf" | grep -q 'type        = "StringList"'; then
+if grep -n -A3 'private_subnet_ids' "$TF_DIR/ssm.tf" | grep 'type        = "StringList"' >/dev/null; then
   ok "/oficina/network/private_subnet_ids e StringList."
 else
   erro "/oficina/network/private_subnet_ids precisa ser StringList."
@@ -69,12 +69,12 @@ if grep -rn --include='*.tf' -E 'secret_string[[:space:]]*=[[:space:]]*jsonencod
 fi
 
 # 5. NodePorts do contrato com o oficina-app.
-if grep -n -A3 'variable "nodeport_prd"' "$TF_DIR/variables.tf" | grep -q 'default     = 30080'; then
+if grep -n -A3 'variable "nodeport_prd"' "$TF_DIR/variables.tf" | grep 'default     = 30080' >/dev/null; then
   ok "nodeport_prd = 30080"
 else
   erro "nodeport_prd != 30080"
 fi
-if grep -n -A3 'variable "nodeport_hml"' "$TF_DIR/variables.tf" | grep -q 'default     = 30081'; then
+if grep -n -A3 'variable "nodeport_hml"' "$TF_DIR/variables.tf" | grep 'default     = 30081' >/dev/null; then
   ok "nodeport_hml = 30081"
 else
   erro "nodeport_hml != 30081"
@@ -86,12 +86,12 @@ if grep -n -F '"POST /auth/cliente", "POST /auth/admin"' "$TF_DIR/apigw.tf" >/de
 else
   erro "route_settings de POST /auth/* ausente."
 fi
-if grep -n -A3 'variable "throttling_auth_rate_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 10'; then
+if grep -n -A3 'variable "throttling_auth_rate_limit"' "$TF_DIR/variables.tf" | grep 'default     = 10' >/dev/null; then
   ok "throttling_auth_rate_limit = 10"
 else
   erro "throttling_auth_rate_limit != 10"
 fi
-if grep -n -A3 'variable "throttling_auth_burst_limit"' "$TF_DIR/variables.tf" | grep -q 'default     = 20'; then
+if grep -n -A3 'variable "throttling_auth_burst_limit"' "$TF_DIR/variables.tf" | grep 'default     = 20' >/dev/null; then
   ok "throttling_auth_burst_limit = 20"
 else
   erro "throttling_auth_burst_limit != 20"

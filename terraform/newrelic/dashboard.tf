@@ -78,7 +78,7 @@ resource "newrelic_one_dashboard" "oficina" {
       height = 3
 
       nrql_query {
-        query = "SELECT latest(status) AS 'Status', latest(restartCount) AS 'Restarts', latest(isReady) AS 'Pronto' FROM K8sPodSample WHERE namespaceName LIKE 'oficina-%' FACET namespaceName, podName SINCE 10 minutes ago"
+        query = "SELECT latest(status) AS 'Status', latest(restartCount) AS 'Restarts', latest(isReady) AS 'Pronto' FROM K8sContainerSample WHERE namespaceName LIKE 'oficina-%' FACET namespaceName, podName SINCE 10 minutes ago"
       }
     }
   }

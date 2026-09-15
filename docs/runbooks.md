@@ -8,7 +8,7 @@ Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`
 **Alerta:** `Oficina-API-Prod-Latencia-Critical` — p95 > 500 ms por 5 min.
 
 1. No APM (`oficina-api`), aba *Transactions*: qual endpoint puxou o p95? Consulte também *Databases* (query lenta) — `log_min_duration_statement = 500` no RDS registra as demoradas.
-2. `kubectl -n oficina-prd get hpa` — o HPA já está no teto (10 réplicas)? Se sim, é limite de nó (ver *CPU dos nós*).
+2. `kubectl -n oficina-prd get hpa` — o HPA já está no teto (10 réplicas)? Se sim, é limite de nó (ver *CPU do cluster*).
 3. `kubectl -n oficina-prd top pods` — algum pod perto de 512Mi (GC agressivo)?
 4. Ação típica: escalar o node group (`node_max_size`) ou investigar a query no Performance Insights do RDS.
 

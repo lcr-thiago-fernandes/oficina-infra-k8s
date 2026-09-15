@@ -61,7 +61,7 @@ group por porta.
 | `terraform/ecr.tf` | `oficina-api`, scan on push, mantém 10 imagens |
 | `terraform/iam-oidc.tf` | roles `oficina-gha-deploy` e `oficina-gha-lambda` (trust por branch, policies escopadas por nome) |
 | `terraform/nlb.tf` | SGs `vpclink`/`nlb`, NLB interno, target groups 30080/30081 (`/health`), listeners 80/81, `aws_autoscaling_attachment` |
-| `terraform/apigw.tf` | HTTP API, stage `$default` (access logs, teto global, throttling de `/auth/*` atrás de flag), VPC Link, integração HTTP_PROXY, 4 rotas sem authorizer |
+| `terraform/apigw.tf` | HTTP API, stage `$default` (access logs, teto global, throttling de `/auth/*` atrás de flag), VPC Link, 2 integrações HTTP_PROXY (pública e com mapeamento de contexto), 4 rotas sem authorizer |
 | `terraform/secrets.tf` | `oficina/jwt_secret`, `oficina/newrelic_license_key` (texto puro) |
 | `terraform/helm.tf` | `metrics-server` (HPA) e `nri-bundle` (flag `newrelic_habilitado`) |
 | `terraform/ssm.tf` | os 8 parâmetros do contrato |
@@ -102,7 +102,7 @@ neste repositório e no `oficina-infra-db`.
 Secrets do GitHub: `AWS_TERRAFORM_ROLE_ARN`, `JWT_SECRET` (≥ 32 chars), `NEW_RELIC_LICENSE_KEY`,
 `NEW_RELIC_ACCOUNT_ID`, `NEW_RELIC_API_KEY`.
 Variables: `AWS_REGION=us-east-1`, `NEW_RELIC_HABILITADO=false`, `THROTTLING_AUTH_HABILITADO=false`,
-`NEW_RELIC_EMAIL_ALERTAS`.
+`NEW_RELIC_EMAIL_ALERTAS`, `CLUSTER_ADMIN_ARNS` (lista JSON de ARNs com admin no cluster; default `[]`).
 
 Depois do `apply`, o job imprime `gha_deploy_role_arn` e `gha_lambda_role_arn`: eles viram
 `AWS_DEPLOY_ROLE_ARN` no `oficina-app` e `AWS_LAMBDA_ROLE_ARN` no `oficina-lambda-auth`.
@@ -114,6 +114,7 @@ terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=local.tfvars    # copie de exemplo.tfvars
 aws eks update-kubeconfig --region us-east-1 --name oficina-eks
 ```
+Quem aplica localmente deve usar a mesma lista de `CLUSTER_ADMIN_ARNS` em `cluster_admin_principal_arns`, senão o próximo apply do CD remove a access entry.
 
 Homologação (`oficina-hml`, NodePort 30081) não passa pelo API Gateway: teste de dentro da
 VPC (`kubectl -n oficina-hml port-forward svc/oficina-api 8081:80` ou `curl http://<nlb_dns_name>:81/health`
@@ -152,6 +153,10 @@ a partir de um pod).
 14. **Nada foi aplicado ainda**: `terraform validate` verde nos dois roots; o primeiro `apply`
     real pode revelar ajustes (versão do EKS disponível, nomes de inputs do módulo, schema do
     provider New Relic). Conferir `aws eks describe-cluster-versions` antes.
+15. **Endpoint público do EKS** (`cluster_endpoint_public_access = true`, CIDR aberto) é a única
+    superfície fora do API Gateway: necessário para o `kubectl` do CD e da máquina. Autenticação
+    por IAM/access entries continua obrigatória; endpoint privado exigiria um runner dentro da
+    VPC (custo). Os nós ficam em subnets privadas.
 
 ## Swagger
 

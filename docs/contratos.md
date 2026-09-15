@@ -13,7 +13,7 @@ Complementa `oficina-app/docs/contratos-entre-repositorios.md` (seções 2, 3, 4
 | `/oficina/network/eks_node_sg_id` | String | SG dos nós do EKS | infra-db (libera 5432 a partir dele) |
 | `/oficina/apigw/api_id` | String | id do HTTP API | lambda-auth |
 | `/oficina/apigw/vpc_link_id` | String | id do VPC Link | informativo |
-| `/oficina/apigw/vpc_link_integration_id` | String | id da integração HTTP_PROXY via VPC Link (listener **prd**) | lambda-auth (alvo de `ANY /api/v1/{proxy+}`) |
+| `/oficina/apigw/vpc_link_integration_id` | String | id da integração HTTP_PROXY via VPC Link (listener **prd**) **com** o mapeamento de contexto (`X-Perfil`/`X-Sub`/`X-Documento`); há uma segunda integração, sem mapeamento, usada pelas rotas públicas | lambda-auth (alvo de `ANY /api/v1/{proxy+}`) |
 | `/oficina/eks/cluster_name` | String | `oficina-eks` | CD do oficina-app |
 | `/oficina/ecr/repository_url` | String | URL completa do ECR | CD do oficina-app |
 
@@ -71,7 +71,7 @@ ordem inversa de uma vez — o stage some junto com o API).
 | NodePort hml → listener NLB `:81` (só dentro da VPC, D3) | `30081` |
 | Health check dos target groups | `GET /health`, HTTP 200, a cada 10 s |
 | Security groups | `sg-vpclink →(80/81)→ sg-nlb →(30080/30081)→ sg-nodes` (D4) |
-| Headers informativos na integração | `X-Perfil`, `X-Sub`, `X-Documento` (`$context.authorizer.*`) — a API revalida o JWT |
+| Duas integrações HTTP_PROXY | `vpc_link` (rota protegida, com headers `X-Perfil`/`X-Sub`/`X-Documento` de `$context.authorizer.*` — a API revalida o JWT) e `vpc_link_publica` (rotas públicas, sem mapeamento de contexto) |
 
 ## O que este repositório EXIGE dos demais
 

@@ -26,8 +26,9 @@ locals {
     }
   }
 
+  # Chave = o proprio ARN (nao o indice): reordenar a lista nao recria as access entries.
   access_entries_extras = {
-    for i, arn in var.cluster_admin_principal_arns : "admin_extra_${i}" => {
+    for arn in var.cluster_admin_principal_arns : arn => {
       principal_arn = arn
       policy_associations = {
         admin = {
@@ -62,6 +63,7 @@ module "eks" {
 
   eks_managed_node_groups = {
     default = {
+      ami_type       = "AL2023_x86_64_STANDARD" # AL2 para em 1.32; explicito para nao depender do default da API.
       instance_types = [var.node_instance_type]
       capacity_type  = "ON_DEMAND"
 

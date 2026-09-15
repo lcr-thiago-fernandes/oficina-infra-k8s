@@ -1,6 +1,7 @@
 # Cinco alertas do design (secao 5). Nomes EXATOS: o vídeo e o PDF de entrega os citam.
-# Queries usam appName = 'oficina-api' (contrato com o oficina-app; hml/prd separam-se por
-# label ambiente, e os alertas de "Prod" filtram por ela onde faz sentido).
+# Os alertas baseados em Transaction (latencia, taxa de erro) filtram por appName =
+# 'oficina-api' (contrato com o oficina-app); o alerta de falha de OS e um evento
+# customizado com nome proprio e unico, entao NAO filtra por appName.
 resource "newrelic_alert_policy" "oficina_prod" {
   name                = "Oficina-Prod"
   incident_preference = "PER_CONDITION"
