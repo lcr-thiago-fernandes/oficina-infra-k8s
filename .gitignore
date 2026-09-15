@@ -1,0 +1,33 @@
+## Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!exemplo.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# .terraform.lock.hcl E versionado (nao ignorar) — licao do Plano 2.
+
+## IDE / OS
+.vs/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+## env
+.env
+.env.local
+
+## Claude Code / Superpowers (artefatos de planejamento — nao versionar)
+.claude/
+CLAUDE.md
+docs/superpowers/
+.superpowers/

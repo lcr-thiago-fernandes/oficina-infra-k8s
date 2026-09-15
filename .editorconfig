@@ -1,0 +1,43 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.cs]
+indent_size = 4
+csharp_new_line_before_open_brace = all
+csharp_indent_case_contents = true
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Style: usings outside namespace
+csharp_using_directive_placement = outside_namespace:warning
+csharp_style_namespace_declarations = file_scoped:warning
+
+# Naming: private fields prefix _
+dotnet_naming_rule.private_fields_should_have_underscore.severity = warning
+dotnet_naming_rule.private_fields_should_have_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_should_have_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.{csproj,props,targets}]
+indent_size = 2
+
+[*.tf]
+indent_size = 2
+
+[*.{sh,tftpl}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
