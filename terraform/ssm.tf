@@ -21,3 +21,17 @@ resource "aws_ssm_parameter" "ecr_repository_url" {
   type        = "String"
   value       = aws_ecr_repository.api.repository_url
 }
+
+resource "aws_ssm_parameter" "eks_cluster_name" {
+  name        = "/${var.project}/eks/cluster_name"
+  description = "Nome do cluster EKS (lido pelo CD do oficina-app: aws eks update-kubeconfig)."
+  type        = "String"
+  value       = module.eks.cluster_name
+}
+
+resource "aws_ssm_parameter" "eks_node_sg_id" {
+  name        = "/${var.project}/network/eks_node_sg_id"
+  description = "SG dos nos do EKS (o infra-db libera 5432 a partir dele)."
+  type        = "String"
+  value       = module.eks.node_security_group_id
+}
