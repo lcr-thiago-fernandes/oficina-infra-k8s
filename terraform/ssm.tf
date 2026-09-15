@@ -14,3 +14,10 @@ resource "aws_ssm_parameter" "private_subnet_ids" {
   type        = "StringList"
   value       = join(",", module.vpc.private_subnets)
 }
+
+resource "aws_ssm_parameter" "ecr_repository_url" {
+  name        = "/${var.project}/ecr/repository_url"
+  description = "URL completa do repositorio ECR (lida pelo CD do oficina-app: ECR_REPOSITORY)."
+  type        = "String"
+  value       = aws_ecr_repository.api.repository_url
+}
