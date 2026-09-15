@@ -3,7 +3,7 @@
 Cada condição do New Relic (`terraform/newrelic/alertas.tf`) aponta para uma âncora deste arquivo.
 Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`.
 
-## Latência
+## Tempo de resposta
 
 **Alerta:** `Oficina-API-Prod-Latencia-Critical` — p95 > 500 ms por 5 min.
 
@@ -38,7 +38,7 @@ Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`
 2. Logs da API filtrados pelo `numeroOs`; transição inválida (422) **não** gera esse evento — se gerou, é bug no filtro de telemetria.
 3. Confira `os.historico_status` no banco para a OS (`SELECT * FROM os.historico_status WHERE ordem_servico_id = ...`).
 
-## CPU dos nós
+## CPU do cluster
 
 **Alerta:** `Oficina-EKS-Prod-CPU-Warning` — CPU média dos nós > 80% por 10 min.
 

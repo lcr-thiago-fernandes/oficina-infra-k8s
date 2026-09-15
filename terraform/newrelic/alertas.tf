@@ -18,7 +18,7 @@ resource "newrelic_nrql_alert_condition" "latencia" {
   name                         = "Oficina-API-Prod-Latencia-Critical"
   type                         = "static"
   description                  = "p95 da API acima de 500 ms por 5 minutos."
-  runbook_url                  = "${var.runbook_base_url}#latencia"
+  runbook_url                  = "${var.runbook_base_url}#tempo-de-resposta"
   enabled                      = true
   violation_time_limit_seconds = 259200
   aggregation_window           = 60
@@ -101,8 +101,9 @@ resource "newrelic_nrql_alert_condition" "falha_os" {
   aggregation_method           = "event_flow"
   aggregation_delay            = 120
 
+  # Sem filtro por appName: evento custom pode nao carregar o atributo; o nome do evento ja e unico da aplicacao.
   nrql {
-    query = "SELECT count(*) FROM OrdemServicoEvento WHERE resultado = 'Falha' AND ${local.filtro_api}"
+    query = "SELECT count(*) FROM OrdemServicoEvento WHERE resultado = 'Falha'"
   }
 
   critical {
@@ -118,7 +119,7 @@ resource "newrelic_nrql_alert_condition" "cpu_nos" {
   name                         = "Oficina-EKS-Prod-CPU-Warning"
   type                         = "static"
   description                  = "CPU media dos nos do EKS acima de 80% por 10 minutos."
-  runbook_url                  = "${var.runbook_base_url}#cpu-dos-nos"
+  runbook_url                  = "${var.runbook_base_url}#cpu-do-cluster"
   enabled                      = true
   violation_time_limit_seconds = 259200
   aggregation_window           = 60
