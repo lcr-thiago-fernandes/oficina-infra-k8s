@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Configurar credenciais AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -101,7 +101,7 @@ jobs:
 
       # O state deste root tambem fica no S3: precisa das credenciais AWS.
       - name: Configurar credenciais AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
