@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - name: fmt
         run: terraform -chdir=terraform fmt -check -recursive
       # -backend=false: valida sintaxe, tipos e modulos sem S3 nem credenciais. O plan e o CD.
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - name: fmt
         run: terraform -chdir=terraform/newrelic fmt -check -recursive
       - name: init (sem backend)
