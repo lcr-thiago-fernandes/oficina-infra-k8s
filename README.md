@@ -19,6 +19,20 @@ gerenciado pelo Terraform, **VPC Link**, **API Gateway HTTP API**, segredos comp
 Contratos: [`docs/contratos.md`](docs/contratos.md) e
 [`oficina-app/docs/contratos-entre-repositorios.md`](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/contratos-entre-repositorios.md).
 
+## Documentação arquitetural
+
+A documentação arquitetural da Fase 3 é centralizada no `oficina-app`:
+
+| O quê | Onde |
+|---|---|
+| Design arquitetural | [fase3-design-arquitetural.md](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/fase3-design-arquitetural.md) |
+| RFCs | [docs/rfc](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/rfc/README.md) |
+| ADRs | [docs/arquitetura](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/README.md) |
+| Diagrama de componentes | [componentes.md](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/diagramas/componentes.md) |
+
+As decisões deste repositório estão registradas em `## Decisões e limitações registradas`, abaixo, e em
+[docs/contratos.md](docs/contratos.md).
+
 ## Arquitetura
 
 ```mermaid
@@ -133,19 +147,19 @@ a partir de um pod).
 ## Decisões e limitações registradas
 
 1. **Throttling de `/auth/*` em duas passadas** (D1): `route_settings` exige rota existente; as
-   rotas nascem no `lambda-auth`. Flag `throttling_auth_habilitado`.
+   rotas nascem no `lambda-auth`. Flag `throttling_auth_habilitado`. Ver [ADR-014](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/ADR-014-api-gateway-http-api.md).
 2. **`oficina/newrelic_license_key` sempre existe** (D2), com placeholder quando desligado — o
-   CD do `oficina-app` exige o segredo.
-3. **hml só dentro da VPC** (D3): um único HTTP API, apontando para prd.
+   CD do `oficina-app` exige o segredo. Ver [RFC-005](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/rfc/RFC-005-observabilidade-new-relic.md).
+3. **hml só dentro da VPC** (D3): um único HTTP API, apontando para prd. Ver [ADR-018](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/ADR-018-ambientes-por-namespace.md).
 4. **NLB com SG próprio e `preserve_client_ip = false`** (D4): regras por referência de SG,
-   health checks cobertos; IP do cliente em `X-Forwarded-For`.
+   health checks cobertos; IP do cliente em `X-Forwarded-For`. Ver [ADR-016](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/arquitetura/ADR-016-nlb-terraform-nodeport.md).
 5. **`GET /swagger` além de `/swagger/{proxy+}`** (D5).
 6. **`oficina-gha-infra` com `AdministratorAccess`, criada fora do Terraform** (D6): o módulo
    EKS toca IAM, KMS, logs, launch templates; enumerar ações é frágil.
 7. **`oficina-gha-lambda` mais ampla que o design, escopada por nome** (D7).
 8. **Access entries determinísticas** (D8): quem aplica da máquina põe o próprio ARN em
    `cluster_admin_principal_arns`, senão o `helm_release` falha com `Unauthorized`.
-9. **New Relic em root separado** (D9): o provider exige credenciais na configuração.
+9. **New Relic em root separado** (D9): o provider exige credenciais na configuração. Ver [RFC-005](https://github.com/lcr-thiago-fernandes/oficina-app/blob/develop/docs/rfc/RFC-005-observabilidade-new-relic.md).
 10. **Sem `plan` em PR** (D10): trust por branch não cobre `pull_request`.
 11. **Providers em aws 5.x / eks 20.x / vpc 5.x / helm 2.x** (D11); Dependabot ignora majors.
 12. **`use_lockfile` + `dynamodb_table`** no backend (D12); Terraform ≥ 1.10.
