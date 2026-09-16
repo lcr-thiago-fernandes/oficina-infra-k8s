@@ -30,7 +30,7 @@ jobs:
       # Lista JSON de ARNs (ex.: ["arn:aws:iam::123:user/x"]). Deve ser a MESMA usada em applies locais, senao um apply apaga a access entry do outro (decisao D8).
       TF_VAR_cluster_admin_principal_arns: ${{ vars.CLUSTER_ADMIN_ARNS || '[]' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # So main e develop tem acao definida; qualquer outra ref (workflow_dispatch) falha alto.
       - name: Definir acao
@@ -48,12 +48,12 @@ jobs:
           fi
 
       - name: Configurar credenciais AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: Terraform init
         run: terraform -chdir=terraform init -input=false
@@ -86,7 +86,7 @@ jobs:
       TF_VAR_newrelic_api_key: ${{ secrets.NEW_RELIC_API_KEY }}
       TF_VAR_email_alertas: ${{ vars.NEW_RELIC_EMAIL_ALERTAS }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Definir acao
         env:
@@ -101,12 +101,12 @@ jobs:
 
       # O state deste root tambem fica no S3: precisa das credenciais AWS.
       - name: Configurar credenciais AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: Terraform init
         run: terraform -chdir=terraform/newrelic init -input=false
