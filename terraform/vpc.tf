@@ -2,7 +2,7 @@
 # (nos do EKS, NLB interno, VPC Link, Lambda auth-api e RDS — os dois ultimos de outros repos).
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.13"
+  version = "~> 6.7"
 
   name = "${var.project}-vpc"
   cidr = var.vpc_cidr
