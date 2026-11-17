@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Bootstrap da conta AWS — roda LOCALMENTE, UMA vez, antes do primeiro `terraform init`
-# de qualquer repositorio da Fase 3 (decisao D6). Idempotente: pode ser re-executado.
+# de qualquer repositorio da Fase 3/4 (decisao D6). Idempotente: pode ser re-executado
+# (re-executar apos mudar REPOS_INFRA atualiza a trust da role oficina-gha-infra).
 #
 # Cria:
 #   1. bucket S3 do tfstate (versionado, criptografado, acesso publico bloqueado)
 #   2. tabela DynamoDB de lock (os repos usam use_lockfile + dynamodb_table na transicao)
 #   3. OIDC provider do GitHub Actions
-#   4. role oficina-gha-infra (AdministratorAccess) assumivel por oficina-infra-k8s e
-#      oficina-infra-db, branches main e develop -> secret AWS_TERRAFORM_ROLE_ARN nos dois repos
+#   4. role oficina-gha-infra (AdministratorAccess) assumivel pelos repositorios de REPOS_INFRA,
+#      branches main e develop -> secret AWS_TERRAFORM_ROLE_ARN em cada um. Fase 4: oficina-app,
+#      oficina-billing-service e oficina-execucao-service aplicam o proprio terraform/ (infra.yml)
+#      com esta role. pull_request NAO a assume (sub ...:pull_request fora da trust): os
+#      infra.yml rodam so fmt/validate em PR.
 #
 # Uso: AWS_PROFILE=... ./scripts/bootstrap.sh
 # Windows/Git Bash: export PATH="/c/Program Files/Amazon/AWSCLIV2:$PATH"
@@ -18,7 +22,7 @@ TF_STATE_BUCKET="${TF_STATE_BUCKET:-oficina-tfstate-fiap-15soat}"
 TF_LOCK_TABLE="${TF_LOCK_TABLE:-oficina-tfstate-lock}"
 GITHUB_OWNER="${GITHUB_OWNER:-lcr-thiago-fernandes}"
 ROLE_INFRA="${ROLE_INFRA:-oficina-gha-infra}"
-REPOS_INFRA=("oficina-infra-k8s" "oficina-infra-db")
+REPOS_INFRA=("oficina-infra-k8s" "oficina-infra-db" "oficina-app" "oficina-billing-service" "oficina-execucao-service")
 
 command -v aws >/dev/null || { echo "ERRO: aws CLI nao encontrado no PATH." >&2; exit 1; }
 CONTA=$(aws sts get-caller-identity --query Account --output text)
@@ -99,7 +103,7 @@ if aws iam get-role --role-name "$ROLE_INFRA" >/dev/null 2>&1; then
 else
   echo "Criando role ${ROLE_INFRA}..."
   aws iam create-role --role-name "$ROLE_INFRA" \
-    --description "Terraform apply dos repositorios oficina-infra-k8s e oficina-infra-db via GitHub OIDC" \
+    --description "Terraform apply dos repositorios da oficina (REPOS_INFRA) via GitHub OIDC" \
     --assume-role-policy-document "$TRUST" \
     --tags Key=Project,Value=oficina Key=ManagedBy,Value=bootstrap.sh >/dev/null
 fi
@@ -109,6 +113,6 @@ aws iam attach-role-policy --role-name "$ROLE_INFRA" --policy-arn "arn:aws:iam::
 
 ROLE_ARN=$(aws iam get-role --role-name "$ROLE_INFRA" --query Role.Arn --output text)
 echo
-echo "OK. Defina nos repositorios oficina-infra-k8s e oficina-infra-db:"
+echo "OK. Defina em cada repositorio de REPOS_INFRA (${REPOS_INFRA[*]}):"
 echo "  gh secret set AWS_TERRAFORM_ROLE_ARN --body \"${ROLE_ARN}\" --repo ${GITHUB_OWNER}/<repo>"
 echo "Proximo passo: terraform -chdir=terraform init (neste repositorio)."

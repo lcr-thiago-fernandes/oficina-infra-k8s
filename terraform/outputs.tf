@@ -46,3 +46,8 @@ output "gha_lambda_role_arn" {
 output "eks_node_security_group_id" {
   value = module.eks.node_security_group_id
 }
+
+output "alarmes_dlq" {
+  description = "Alarmes CloudWatch das filas _error (Fase 4)."
+  value       = [for a in aws_cloudwatch_metric_alarm.dlq_com_mensagens : a.alarm_name]
+}

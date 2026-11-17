@@ -176,3 +176,16 @@ variable "nri_bundle_chart_version" {
   type    = string
   default = "8.0.26"
 }
+
+# --- Fase 4: alarme das filas _error (DLQ do MassTransit) ---
+variable "email_alertas_dlq" {
+  description = "E-mail inscrito no topico SNS dos alarmes de DLQ (vazio = sem inscricao; o alarme continua visivel no CloudWatch). No CD vem de vars.NEW_RELIC_EMAIL_ALERTAS."
+  type        = string
+  default     = ""
+}
+
+variable "prefixo_ambiente_dlq" {
+  description = "Prefixo de ambiente das filas monitoradas (Mensageria__PrefixoAmbiente dos servicos: prd|hml)."
+  type        = string
+  default     = "prd"
+}

@@ -29,6 +29,8 @@ jobs:
       TF_VAR_throttling_auth_habilitado: ${{ vars.THROTTLING_AUTH_HABILITADO || 'false' }}
       # Lista JSON de ARNs (ex.: ["arn:aws:iam::123:user/x"]). Deve ser a MESMA usada em applies locais, senao um apply apaga a access entry do outro (decisao D8).
       TF_VAR_cluster_admin_principal_arns: ${{ vars.CLUSTER_ADMIN_ARNS || '[]' }}
+      # Fase 4: e-mail dos alarmes CloudWatch das filas _error (vazio = sem inscricao SNS).
+      TF_VAR_email_alertas_dlq: ${{ vars.NEW_RELIC_EMAIL_ALERTAS || '' }}
     steps:
       - uses: actions/checkout@v7
 

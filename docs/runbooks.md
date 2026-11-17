@@ -1,6 +1,7 @@
 # Runbooks dos alertas
 
-Cada condição do New Relic (`terraform/newrelic/alertas.tf`) aponta para uma âncora deste arquivo.
+Cada condição do New Relic (`terraform/newrelic/alertas.tf` e `alertas-saga.tf`) e cada alarme
+CloudWatch de DLQ (`terraform/alarmes-dlq.tf`) aponta para uma âncora deste arquivo.
 Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`.
 
 ## Tempo de resposta
@@ -45,3 +46,27 @@ Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`
 1. `kubectl top nodes`; `kubectl get pods -A --field-selector=status.phase=Pending` (pods sem nó?).
 2. Suba `node_max_size`/`node_desired_size` em `terraform/variables.tf` (ou `-var`) e aplique pelo CD.
 3. Se for só hml consumindo, reduza réplicas em `oficina-hml` (`kubectl -n oficina-hml scale deploy/oficina-api --replicas=1`).
+
+## Compensacao da saga
+
+**Alerta:** `Oficina-Saga-Prod-Compensacao-Warning` — `SagaOrdemServico` com `compensacao IS true`.
+
+1. `SELECT ordemServicoId, numeroOs, passo, resultado, estado, motivo FROM SagaOrdemServico WHERE compensacao IS true SINCE 1 hour ago`.
+2. Compensação é parte do fluxo (orçamento rejeitado/falhou, pagamento recusado, execução recusada, cancelamento): só investigue se o volume fugir do normal ou se `estado` ficar em `Compensando`.
+3. `GET /api/v1/ordens-servico/{id}/saga` (OS Service) mostra a trilha completa da OS.
+
+## Compensacao ou estorno falhou
+
+**Alertas:** `Oficina-Saga-Prod-CompensacaoFalhou-Critical` (`SagaOrdemServico` com `resultado = 'CompensacaoFalhou'`) e `Oficina-Billing-Prod-EstornoFalhou-Critical` (`PagamentoEvento` com `etapa = 'EstornoFalhou'` ou `etapa = 'EstornoAutomatico'` e `resultado = 'Falha'`).
+
+1. A saga fica em `Compensando` e o cliente pagou sem serviço: **intervenção manual**.
+2. `SELECT * FROM PagamentoEvento WHERE ordemServicoId = '<id>' SINCE 1 day ago` — `gateway`, `valor`, `meio`.
+3. Estorne no painel do Mercado Pago e registre; logs do `oficina-billing` filtrados pelo `ordemServicoId`.
+
+## Fila DLQ com mensagens
+
+**Alarmes CloudWatch:** `Oficina-Saga-Prod-DLQ-{os_saga,billing_comandos,execucao_comandos}-Critical` — `ApproximateNumberOfMessagesVisible > 0` em `prd-oficina-*_error`.
+
+1. `aws sqs get-queue-attributes --queue-url $(aws sqs get-queue-url --queue-name <fila>_error --query QueueUrl --output text) --attribute-names ApproximateNumberOfMessages`.
+2. Leia a mensagem (`aws sqs receive-message ... --message-attribute-names All`): os headers `MT-Fault-*` trazem a exceção; correlacione pelo `ordemServicoId` e `X-Correlation-Id` nos logs/traces.
+3. Corrigida a causa, devolva a mensagem para a fila original (mover do `_error` para a fila de origem) ou descarte-a de forma consciente.
