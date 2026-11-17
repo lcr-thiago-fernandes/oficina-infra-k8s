@@ -39,7 +39,7 @@ variable "vpc_cidr" {
 variable "cluster_version" {
   description = "Versao do Kubernetes no EKS. Confira `aws eks describe-cluster-versions` antes do apply."
   type        = string
-  default     = "1.33"
+  default     = "1.34"
 }
 
 variable "node_instance_type" {
