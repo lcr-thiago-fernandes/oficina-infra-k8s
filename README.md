@@ -57,7 +57,7 @@ group por porta.
 | Arquivo | O que cria |
 |---|---|
 | `terraform/vpc.tf` | VPC 2 AZs, subnets públicas/privadas, 1 NAT (por onde a auth-api sai para Secrets Manager e DynamoDB) |
-| `terraform/eks.tf` | EKS `1.33`, node group `t3.medium` (2/1/3), addons, access entries para `gha-infra`, `gha-deploy` e `cluster_admin_principal_arns` |
+| `terraform/eks.tf` | EKS `1.34`, node group `t3.medium` (2/1/3), addons, access entries para `gha-infra`, `gha-deploy` e `cluster_admin_principal_arns` |
 | `terraform/ecr.tf` | `oficina-api`, scan on push, mantém 10 imagens |
 | `terraform/iam-oidc.tf` | roles `oficina-gha-deploy` e `oficina-gha-lambda` (trust por branch, policies escopadas por nome) |
 | `terraform/nlb.tf` | SGs `vpclink`/`nlb`, NLB interno, target groups 30080/30081 (`/health`), listeners 80/81, `aws_autoscaling_attachment` |

@@ -4,7 +4,7 @@
 region  = "us-east-1"
 project = "oficina"
 
-cluster_version    = "1.33"
+cluster_version    = "1.34"
 node_instance_type = "t3.medium"
 node_desired_size  = 2
 node_min_size      = 1
