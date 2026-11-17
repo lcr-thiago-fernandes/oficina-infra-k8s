@@ -10,14 +10,21 @@ data "aws_iam_role" "gha_infra" {
 
 locals {
   github_oidc_host = "token.actions.githubusercontent.com"
+  # Cada branch aceita os dois formatos de sub do GitHub (StringLike): o classico
+  # repo:<owner>/<repo>:... e o imutavel repo:<owner>@<id>/<repo>@<id>:..., que este
+  # owner usa (customizacao OIDC use_immutable_subject).
   # Trust escopada por BRANCH: so main e develop de cada repositorio (design, secao 7).
   subs_app = [
     "repo:${var.github_owner}/${var.github_repo_app}:ref:refs/heads/main",
+    "repo:${var.github_owner}@*/${var.github_repo_app}@*:ref:refs/heads/main",
     "repo:${var.github_owner}/${var.github_repo_app}:ref:refs/heads/develop",
+    "repo:${var.github_owner}@*/${var.github_repo_app}@*:ref:refs/heads/develop",
   ]
   subs_lambda = [
     "repo:${var.github_owner}/${var.github_repo_lambda_auth}:ref:refs/heads/main",
+    "repo:${var.github_owner}@*/${var.github_repo_lambda_auth}@*:ref:refs/heads/main",
     "repo:${var.github_owner}/${var.github_repo_lambda_auth}:ref:refs/heads/develop",
+    "repo:${var.github_owner}@*/${var.github_repo_lambda_auth}@*:ref:refs/heads/develop",
   ]
   conta = data.aws_caller_identity.atual.account_id
 }
@@ -39,7 +46,7 @@ data "aws_iam_policy_document" "trust_deploy" {
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "${local.github_oidc_host}:sub"
       values   = local.subs_app
     }
@@ -63,7 +70,7 @@ data "aws_iam_policy_document" "trust_lambda" {
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "${local.github_oidc_host}:sub"
       values   = local.subs_lambda
     }
