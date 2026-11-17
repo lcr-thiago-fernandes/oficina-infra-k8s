@@ -103,8 +103,9 @@ locals {
     health        = "GET /health"
     swagger       = "GET /swagger" # decisao D5: {proxy+} nao casa com /swagger sem sufixo
     swagger_proxy = "GET /swagger/{proxy+}"
-    # Webhook de aprovacao do orcamento: segue protegido por X-Webhook-Token na API.
-    aprovacao = "POST /api/v1/ordens-servico/{id}/orcamento/aprovacao"
+    # Fase 4: o webhook publico de aprovacao do orcamento (POST /api/v1/ordens-servico/{id}/
+    # orcamento/aprovacao) saiu do OS Service; o webhook agora e POST /billing/webhooks/mercadopago,
+    # criado pelo terraform/ do oficina-billing-service.
   }
 }
 

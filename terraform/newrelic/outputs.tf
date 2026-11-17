@@ -13,5 +13,12 @@ output "condicoes" {
     newrelic_nrql_alert_condition.uptime.name,
     newrelic_nrql_alert_condition.falha_os.name,
     newrelic_nrql_alert_condition.cpu_nos.name,
+    newrelic_nrql_alert_condition.saga_compensacao.name,
+    newrelic_nrql_alert_condition.saga_compensacao_falhou.name,
+    newrelic_nrql_alert_condition.billing_estorno_falhou.name,
   ]
+}
+
+output "dashboard_saga_url" {
+  value = newrelic_one_dashboard.saga.permalink
 }

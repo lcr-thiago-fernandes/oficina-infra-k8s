@@ -32,18 +32,27 @@ else
 fi
 
 # 2. Rotas OBRIGATORIAS sem authorizer (valores do map local.rotas_publicas).
-for rota in 'GET /health' 'GET /swagger/{proxy+}' 'POST /api/v1/ordens-servico/{id}/orcamento/aprovacao'; do
+for rota in 'GET /health' 'GET /swagger/{proxy+}'; do
   if grep -rn --include='*.tf' -F "\"$rota\"" "$TF_DIR" >/dev/null; then
     ok "rota '$rota' presente."
   else
     erro "rota obrigatoria '$rota' ausente."
   fi
 done
+# 2b. Fase 4: o webhook de aprovacao saiu do OS Service (agora POST /billing/webhooks/mercadopago,
+# criado pelo oficina-billing-service). Nenhuma rota /billing/* ou /execucao/* nasce aqui.
+if grep -rn --include='*.tf' -E '"POST /api/v1/ordens-servico/\{id\}/orcamento/aprovacao"|"[A-Z]+ /(billing|execucao)/' "$TF_DIR" >/dev/null; then
+  erro "rota do webhook da Fase 3 ou rota /billing|/execucao declarada aqui (pertencem aos servicos da Fase 4)."
+else
+  ok "nenhuma rota do webhook da Fase 3 nem de /billing|/execucao."
+fi
 
 # 3. Parametros SSM publicados (nomes exatos lidos pelos outros repositorios).
 for ssm in '/network/vpc_id' '/network/private_subnet_ids' '/network/eks_node_sg_id' \
            '/apigw/api_id' '/apigw/vpc_link_id' '/apigw/vpc_link_integration_id' \
-           '/eks/cluster_name' '/ecr/repository_url'; do
+           '/eks/cluster_name' '/ecr/repository_url' \
+           '/eks/oidc_provider_arn' '/eks/oidc_provider_url' '/nlb/arn' '/nlb/security_group_id' \
+           '/apigw/vpc_link_security_group_id' '/eks/node_asg_names'; do
   if grep -n -F "name        = \"/\${var.project}${ssm}\"" "$TF_DIR/ssm.tf" >/dev/null; then
     ok "SSM /oficina${ssm} publicado."
   else
@@ -54,6 +63,24 @@ if grep -n -A3 'private_subnet_ids' "$TF_DIR/ssm.tf" | grep 'type        = "Stri
   ok "/oficina/network/private_subnet_ids e StringList."
 else
   erro "/oficina/network/private_subnet_ids precisa ser StringList."
+fi
+
+if grep -n -A3 '"eks_node_asg_names"' "$TF_DIR/ssm.tf" | grep 'type        = "StringList"' >/dev/null; then
+  ok "/oficina/eks/node_asg_names e StringList."
+else
+  erro "/oficina/eks/node_asg_names precisa ser StringList."
+fi
+# O issuer vai SEM https:// (output oidc_provider do modulo EKS, nao cluster_oidc_issuer_url).
+if grep -n -A4 '"eks_oidc_provider_url"' "$TF_DIR/ssm.tf" | grep -E 'value[[:space:]]+= module\.eks\.oidc_provider([[:space:]]|$)' >/dev/null; then
+  ok "/oficina/eks/oidc_provider_url = module.eks.oidc_provider (sem https://)."
+else
+  erro "/oficina/eks/oidc_provider_url precisa vir de module.eks.oidc_provider (sem https://)."
+fi
+# A role de deploy do oficina-app le /oficina/os-service/* (irsa_role_arn da Fase 4).
+if grep -n -F "parameter/\${var.project}/os-service/*" "$TF_DIR/iam-oidc.tf" >/dev/null; then
+  ok "oficina-gha-deploy le /oficina/os-service/*."
+else
+  erro "oficina-gha-deploy sem ssm:GetParameter em /oficina/os-service/*."
 fi
 
 # 4. Segredos em texto puro criados aqui.
@@ -103,6 +130,15 @@ for role in 'gha-infra' 'gha-deploy' 'gha-lambda'; do
     ok "role oficina-${role}"
   else
     erro "role oficina-${role} nao referenciada."
+  fi
+done
+
+# 8. REPOS_INFRA do bootstrap: quem assume oficina-gha-infra (Fase 4: os tres servicos aplicam o proprio terraform/).
+for repo in oficina-infra-k8s oficina-infra-db oficina-app oficina-billing-service oficina-execucao-service; do
+  if grep -E '^REPOS_INFRA=\(' scripts/bootstrap.sh | grep -F "\"$repo\"" >/dev/null; then
+    ok "REPOS_INFRA inclui $repo"
+  else
+    erro "REPOS_INFRA (scripts/bootstrap.sh) sem $repo"
   fi
 done
 

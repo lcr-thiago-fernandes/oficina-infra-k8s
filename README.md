@@ -61,12 +61,13 @@ group por porta.
 | `terraform/ecr.tf` | `oficina-api`, scan on push, mantém 10 imagens |
 | `terraform/iam-oidc.tf` | roles `oficina-gha-deploy` e `oficina-gha-lambda` (trust por branch, policies escopadas por nome) |
 | `terraform/nlb.tf` | SGs `vpclink`/`nlb`, NLB interno, target groups 30080/30081 (`/health`), listeners 80/81, `aws_autoscaling_attachment` |
-| `terraform/apigw.tf` | HTTP API, stage `$default` (access logs, teto global, throttling de `/auth/*` atrás de flag), VPC Link, 2 integrações HTTP_PROXY (pública e com mapeamento de contexto), 4 rotas sem authorizer |
+| `terraform/apigw.tf` | HTTP API, stage `$default` (access logs, teto global, throttling de `/auth/*` atrás de flag), VPC Link, 2 integrações HTTP_PROXY (pública e com mapeamento de contexto), 3 rotas sem authorizer (`GET /health`, `GET /swagger`, `GET /swagger/{proxy+}`) |
 | `terraform/secrets.tf` | `oficina/jwt_secret`, `oficina/newrelic_license_key` (texto puro) |
 | `terraform/helm.tf` | `metrics-server` (HPA) e `nri-bundle` (flag `newrelic_habilitado`) |
-| `terraform/ssm.tf` | os 8 parâmetros do contrato |
-| `terraform/newrelic/` | root separado: política `Oficina-Prod`, 5 condições NRQL, dashboard, e-mail |
-| `scripts/bootstrap.sh` | bucket + lock do tfstate, OIDC provider, role `oficina-gha-infra` |
+| `terraform/ssm.tf` | os 8 parâmetros do contrato da Fase 3 + 6 da Fase 4 |
+| `terraform/alarmes-dlq.tf` | Fase 4: tópico SNS `oficina-alertas-dlq` e 3 alarmes CloudWatch das filas `prd-oficina-*_error` |
+| `terraform/newrelic/` | root separado: política `Oficina-Prod`, 8 condições NRQL (5 da Fase 3 + 3 da saga), dashboards "Operacao" e "Saga da OS", e-mail |
+| `scripts/bootstrap.sh` | bucket + lock do tfstate, OIDC provider, role `oficina-gha-infra` (trust para os repositórios de `REPOS_INFRA`) |
 
 ## Ordem de provisionamento da Fase 3
 
@@ -90,7 +91,8 @@ aws configure   # credenciais de administrador da conta
 ./scripts/bootstrap.sh
 ```
 O script imprime o ARN de `oficina-gha-infra`. Defina-o como secret `AWS_TERRAFORM_ROLE_ARN`
-neste repositório e no `oficina-infra-db`.
+em cada repositório de `REPOS_INFRA` (Fase 4: também `oficina-app`, `oficina-billing-service` e
+`oficina-execucao-service` — ver seção [Fase 4](#fase-4)).
 
 ## Deploy
 
@@ -129,6 +131,106 @@ a partir de um pod).
   `Oficina-API-Prod-Uptime-Critical`, `Oficina-OS-Prod-FalhaProcessamento-Critical`,
   `Oficina-EKS-Prod-CPU-Warning`; dashboard "Oficina Mecanica - Operacao" (6 widgets);
   notificação por e-mail. Runbooks em [`docs/runbooks.md`](docs/runbooks.md).
+
+## Fase 4
+
+A Fase 4 (saga orquestrada entre OS Service, Billing e Execução — design em
+`oficina-app/docs/arquitetura/fase4-design-arquitetural.md`, seções 3, 6.4 e 9) mantém este
+repositório como dono da plataforma compartilhada. Os serviços novos criam o **próprio**
+`terraform/` (ECR, DynamoDB, IRSA, role de deploy, target group + listener no NLB, rotas no
+API Gateway) lendo do SSM os parâmetros abaixo — nunca `terraform_remote_state`.
+
+### Parâmetros SSM novos (contrato)
+
+| Parâmetro | Tipo | Valor | Quem lê |
+|---|---|---|---|
+| `/oficina/eks/oidc_provider_arn` | String | `module.eks.oidc_provider_arn` | `Federated` da trust IRSA: oficina-app, billing, execução |
+| `/oficina/eks/oidc_provider_url` | String | `module.eks.oidc_provider` — issuer **sem** `https://` | chaves `<url>:sub`/`<url>:aud` da trust IRSA: oficina-app, billing, execução |
+| `/oficina/nlb/arn` | String | `aws_lb.interno.arn` | listeners próprios (billing 8081/8082, execução 8083/8084) |
+| `/oficina/nlb/security_group_id` | String | `aws_security_group.nlb.id` | regras de SG das portas de cada serviço |
+| `/oficina/apigw/vpc_link_security_group_id` | String | `aws_security_group.vpclink.id` | egress do VPC Link para o listener prd de cada serviço |
+| `/oficina/eks/node_asg_names` | **StringList** | `join(",", module.eks.eks_managed_node_groups_autoscaling_group_names)` | `aws_autoscaling_attachment` (ASG × ambiente) de billing e execução |
+
+O ID do Lambda Authorizer continua em `/oficina/auth/lambda_authorizer_id` (publicado pelo
+`oficina-lambda-auth`). O `scripts/verificar-contratos.sh` (job `contratos` do CI) confere os
+nomes, o `StringList`, a origem sem `https://`, a leitura de `/oficina/os-service/*` e o `REPOS_INFRA`.
+
+### Outras mudanças
+
+- **`REPOS_INFRA`** (`scripts/bootstrap.sh`) passa a ser `oficina-infra-k8s`, `oficina-infra-db`,
+  `oficina-app`, `oficina-billing-service`, `oficina-execucao-service`: o `infra.yml` de cada
+  serviço assume `oficina-gha-infra` (secret `AWS_TERRAFORM_ROLE_ARN`) para aplicar o próprio
+  `terraform/`. A trust aceita só `ref:refs/heads/main` e `ref:refs/heads/develop` (os
+  `infra.yml` fazem `plan` em push e `apply` via `workflow_dispatch` só nessas branches, sem
+  `environment:` — que mudaria o `sub` do token); em PR rodam apenas `fmt`/`validate`, sem AWS.
+  **Re-execute `./scripts/bootstrap.sh`** para atualizar a trust da role existente.
+  Limitação: a role é `AdministratorAccess` (já registrada na Fase 3); agora cinco repositórios a assumem.
+- **Role `oficina-gha-deploy`** (CD do `oficina-app`): `ssm:GetParameter(s)` também em
+  `/oficina/os-service/*` (o `cd.yml` lê `/oficina/os-service/<amb>/irsa_role_arn`, com `<amb>` = `prd` ou `hml`).
+- **API Gateway:** removida a rota pública `POST /api/v1/ordens-servico/{id}/orcamento/aprovacao`
+  (o webhook agora é `POST /billing/webhooks/mercadopago`, criado pelo `oficina-billing-service`).
+  A integração `vpc_link_publica` continua (usada por `/health` e `/swagger`).
+- **New Relic** (`terraform/newrelic/`): dashboard **"Oficina Mecanica - Saga da OS"** (sagas
+  por estado atual da saga — `Entregue` não aparece: a entrega fica fora da saga, que termina em
+  `Concluida` —, passos por resultado, sagas compensadas por motivo (`uniqueCount(ordemServicoId)`),
+  tempo por passo em segundos, duração da execução da fila à finalização (soma de `duracaoMs`; o
+  `duracaoMinutos` do `ExecucaoEvento` é inteiro e daria 0 numa demo), pagamentos por
+  etapa/resultado, execuções por status, throughput por serviço via `Transaction` por `appName`,
+  nota de trace distribuído por `ordemServicoId` e mapa de serviços) e três condições na política
+  `Oficina-Prod`:
+  - `Oficina-Saga-Prod-Compensacao-Warning`: `uniqueCount(ordemServicoId)` só do **início** da
+    compensação (`compensacao IS true AND (resultado = 'Falha' OR passo = 'Cancelamento')`); o
+    desfecho (`Compensado`/`CompensacaoFalhou`) não conta, então um fluxo de estorno gera um sinal
+    e não duplica o Critical.
+  - `Oficina-Saga-Prod-CompensacaoFalhou-Critical` e `Oficina-Billing-Prod-EstornoFalhou-Critical`:
+    mantidos separados. **Uma falha de estorno pedido pela saga abre 2 incidentes** (saga +
+    Billing), o que é esperado; o do Billing cobre também o `EstornoAutomatico`, que não passa pela saga.
+
+  Runbooks em [`docs/runbooks.md`](docs/runbooks.md).
+- **Fila DLQ com mensagens** (`terraform/alarmes-dlq.tf`): alarmes **CloudWatch**
+  `Oficina-Saga-Prod-DLQ-{os_saga,billing_comandos,execucao_comandos}-Critical` sobre
+  `AWS/SQS ApproximateNumberOfMessagesVisible` (dimensão `QueueName`) das filas
+  `prd-oficina-os-saga_error`, `prd-oficina-billing-comandos_error` e
+  `prd-oficina-execucao-comandos_error`, notificando o tópico SNS `oficina-alertas-dlq`
+  (e-mail de `NEW_RELIC_EMAIL_ALERTAS`; a inscrição precisa ser confirmada). **Por que não New
+  Relic:** a conta não tem a integração AWS (link de conta + polling SQS) configurada aqui;
+  nenhum serviço emite evento quando a mensagem vai para a `_error` (`PublishFaults = false`);
+  e o Fluent Bit exclui os namespaces `oficina-*`, então não há log para consultar. Ligar a
+  integração AWS do New Relic depois permite trocar estes alarmes por NRQL sobre `QueueSample`.
+
+### Ordem de aplicação (Fase 4)
+
+```
+1. scripts/bootstrap.sh                  (re-executar: trust de oficina-gha-infra com os 5 repositórios)
+2. oficina-infra-k8s  (este)             → SSM novos, deploy role com /oficina/os-service/*, alarmes DLQ
+3. oficina-infra-db                      → inalterado
+4. oficina-lambda-auth                   → inalterado; publica /oficina/auth/lambda_authorizer_id
+5. oficina-app        (terraform/)       → IRSA do OS Service, /oficina/os-service/<amb>/irsa_role_arn; depois o CD
+6. oficina-billing-service (terraform/)  → ECR, DynamoDB, IRSA, NLB 8081/8082, rotas /billing/*; depois o CD
+7. oficina-execucao-service (terraform/) → ECR, DynamoDB, IRSA, NLB 8083/8084, rotas /execucao/*; depois o CD
+```
+
+Destruição na ordem inversa (listeners/target groups dos serviços saem antes do NLB).
+
+### Verificação semântica da observabilidade
+
+Cada atributo e valor usado nas NRQL foi conferido no código dos produtores (lição da Fase 3):
+
+| Evento | Atributos usados | Fonte |
+|---|---|---|
+| `SagaOrdemServico` | `ordemServicoId`, `passo`, `resultado`, `compensacao`, `duracaoMs`, `estado`, `motivo` | `PublicadorEventoSagaNewRelic` + valores de `PassosSaga` (`Falha`, `Compensado`, `CompensacaoFalhou`, passo `Cancelamento`) e estados de `OrdemServicoSaga` no `oficina-app` |
+| `PagamentoEvento` | `etapa` (`EstornoFalhou`, `EstornoAutomatico`), `resultado` (`Sucesso`/`Falha`) | `oficina-billing-service`: `TelemetriaPagamentoNewRelic` e casos de uso |
+| `ExecucaoEvento` | `statusNovo` (`Finalizada`…), `resultado`, `duracaoMinutos` | `oficina-execucao-service`: `TelemetriaExecucaoNewRelic`, `StatusExecucao` |
+| `Transaction` | `appName` ∈ `oficina-api`, `oficina-billing`, `oficina-execucao` | `NEW_RELIC_APP_NAME` em `k8s/deployment.yaml` de cada serviço |
+
+`SagaOrdemServico` traz também `motivo` (razão de negócio, presente em `compensacao = true`,
+`Falha` e `CompensacaoFalhou`) e `detalhe` (`PagamentoId` ou nome do `StatusExecucao`), conforme o
+`PublicadorEventoSagaNewRelic` do `oficina-app`.
+
+> **Verificar após o primeiro deploy:** `SELECT count(*) FROM SagaOrdemServico FACET compensacao SINCE 1 day ago`
+> precisa mostrar `true`/`false` **booleanos**. Se o agente os enviar como string, `compensacao IS true`
+> não casa nada e o dashboard/alerta de compensação ficam mudos — nesse caso, trocar por
+> `compensacao = 'true'`.
 
 ## Decisões e limitações registradas
 
