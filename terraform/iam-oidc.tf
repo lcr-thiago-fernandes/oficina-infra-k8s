@@ -287,8 +287,15 @@ data "aws_iam_policy_document" "lambda_apigw_ddb_ec2_logs_ssm" {
   statement {
     sid       = "SsmLeitura"
     effect    = "Allow"
-    actions   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:DescribeParameters"]
+    actions   = ["ssm:GetParameter", "ssm:GetParameters"]
     resources = ["arn:aws:ssm:${var.region}:${local.conta}:parameter/${var.project}/*"]
+  }
+
+  statement {
+    # DescribeParameters nao aceita restricao por recurso (exige "*"); o provider AWS o usa ao ler aws_ssm_parameter.
+    sid       = "SsmDescribe"
+    actions   = ["ssm:DescribeParameters"]
+    resources = ["*"]
   }
 
   statement {
