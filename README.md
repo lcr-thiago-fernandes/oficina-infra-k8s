@@ -166,7 +166,7 @@ nomes, o `StringList`, a origem sem `https://`, a leitura de `/oficina/os-servic
   **Re-execute `./scripts/bootstrap.sh`** para atualizar a trust da role existente.
   Limitação: a role é `AdministratorAccess` (já registrada na Fase 3); agora cinco repositórios a assumem.
 - **Role `oficina-gha-deploy`** (CD do `oficina-app`): `ssm:GetParameter(s)` também em
-  `/oficina/os-service/*` (o `cd.yml` lê `/oficina/os-service/irsa_role_arn`).
+  `/oficina/os-service/*` (o `cd.yml` lê `/oficina/os-service/<amb>/irsa_role_arn`, com `<amb>` = `prd` ou `hml`).
 - **API Gateway:** removida a rota pública `POST /api/v1/ordens-servico/{id}/orcamento/aprovacao`
   (o webhook agora é `POST /billing/webhooks/mercadopago`, criado pelo `oficina-billing-service`).
   A integração `vpc_link_publica` continua (usada por `/health` e `/swagger`).
@@ -205,7 +205,7 @@ nomes, o `StringList`, a origem sem `https://`, a leitura de `/oficina/os-servic
 2. oficina-infra-k8s  (este)             → SSM novos, deploy role com /oficina/os-service/*, alarmes DLQ
 3. oficina-infra-db                      → inalterado
 4. oficina-lambda-auth                   → inalterado; publica /oficina/auth/lambda_authorizer_id
-5. oficina-app        (terraform/)       → IRSA do OS Service, /oficina/os-service/irsa_role_arn; depois o CD
+5. oficina-app        (terraform/)       → IRSA do OS Service, /oficina/os-service/<amb>/irsa_role_arn; depois o CD
 6. oficina-billing-service (terraform/)  → ECR, DynamoDB, IRSA, NLB 8081/8082, rotas /billing/*; depois o CD
 7. oficina-execucao-service (terraform/) → ECR, DynamoDB, IRSA, NLB 8083/8084, rotas /execucao/*; depois o CD
 ```
