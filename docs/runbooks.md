@@ -49,15 +49,17 @@ Antes de tudo: `aws eks update-kubeconfig --region us-east-1 --name oficina-eks`
 
 ## Compensacao da saga
 
-**Alerta:** `Oficina-Saga-Prod-Compensacao-Warning` — `SagaOrdemServico` com `compensacao IS true`.
+**Alerta:** `Oficina-Saga-Prod-Compensacao-Warning` — sagas que **iniciaram** compensação (`compensacao IS true AND (resultado = 'Falha' OR passo = 'Cancelamento')`, `uniqueCount(ordemServicoId)`).
 
-1. `SELECT ordemServicoId, numeroOs, passo, resultado, estado, motivo FROM SagaOrdemServico WHERE compensacao IS true SINCE 1 hour ago`.
+1. `SELECT ordemServicoId, numeroOs, passo, resultado, estado, motivo, detalhe FROM SagaOrdemServico WHERE compensacao IS true SINCE 1 hour ago`.
 2. Compensação é parte do fluxo (orçamento rejeitado/falhou, pagamento recusado, execução recusada, cancelamento): só investigue se o volume fugir do normal ou se `estado` ficar em `Compensando`.
 3. `GET /api/v1/ordens-servico/{id}/saga` (OS Service) mostra a trilha completa da OS.
 
 ## Compensacao ou estorno falhou
 
 **Alertas:** `Oficina-Saga-Prod-CompensacaoFalhou-Critical` (`SagaOrdemServico` com `resultado = 'CompensacaoFalhou'`) e `Oficina-Billing-Prod-EstornoFalhou-Critical` (`PagamentoEvento` com `etapa = 'EstornoFalhou'` ou `etapa = 'EstornoAutomatico'` e `resultado = 'Falha'`).
+
+Uma falha de estorno pedido pela saga abre **dois** incidentes (um de cada condição) — é o mesmo problema; trate uma vez.
 
 1. A saga fica em `Compensando` e o cliente pagou sem serviço: **intervenção manual**.
 2. `SELECT * FROM PagamentoEvento WHERE ordemServicoId = '<id>' SINCE 1 day ago` — `gateway`, `valor`, `meio`.

@@ -171,11 +171,22 @@ nomes, o `StringList`, a origem sem `https://`, a leitura de `/oficina/os-servic
   (o webhook agora é `POST /billing/webhooks/mercadopago`, criado pelo `oficina-billing-service`).
   A integração `vpc_link_publica` continua (usada por `/health` e `/swagger`).
 - **New Relic** (`terraform/newrelic/`): dashboard **"Oficina Mecanica - Saga da OS"** (sagas
-  por estado atual, passos por resultado, compensações por motivo, tempo por passo, pagamentos
-  por etapa/resultado, execuções por status, throughput por serviço via `Transaction` por
-  `appName`, nota de trace distribuído e mapa de serviços) e três condições na política
-  `Oficina-Prod`: `Oficina-Saga-Prod-Compensacao-Warning`, `Oficina-Saga-Prod-CompensacaoFalhou-Critical`,
-  `Oficina-Billing-Prod-EstornoFalhou-Critical`. Runbooks em [`docs/runbooks.md`](docs/runbooks.md).
+  por estado atual da saga — `Entregue` não aparece: a entrega fica fora da saga, que termina em
+  `Concluida` —, passos por resultado, sagas compensadas por motivo (`uniqueCount(ordemServicoId)`),
+  tempo por passo em segundos, duração da execução da fila à finalização (soma de `duracaoMs`; o
+  `duracaoMinutos` do `ExecucaoEvento` é inteiro e daria 0 numa demo), pagamentos por
+  etapa/resultado, execuções por status, throughput por serviço via `Transaction` por `appName`,
+  nota de trace distribuído por `ordemServicoId` e mapa de serviços) e três condições na política
+  `Oficina-Prod`:
+  - `Oficina-Saga-Prod-Compensacao-Warning`: `uniqueCount(ordemServicoId)` só do **início** da
+    compensação (`compensacao IS true AND (resultado = 'Falha' OR passo = 'Cancelamento')`); o
+    desfecho (`Compensado`/`CompensacaoFalhou`) não conta, então um fluxo de estorno gera um sinal
+    e não duplica o Critical.
+  - `Oficina-Saga-Prod-CompensacaoFalhou-Critical` e `Oficina-Billing-Prod-EstornoFalhou-Critical`:
+    mantidos separados. **Uma falha de estorno pedido pela saga abre 2 incidentes** (saga +
+    Billing), o que é esperado; o do Billing cobre também o `EstornoAutomatico`, que não passa pela saga.
+
+  Runbooks em [`docs/runbooks.md`](docs/runbooks.md).
 - **Fila DLQ com mensagens** (`terraform/alarmes-dlq.tf`): alarmes **CloudWatch**
   `Oficina-Saga-Prod-DLQ-{os_saga,billing_comandos,execucao_comandos}-Critical` sobre
   `AWS/SQS ApproximateNumberOfMessagesVisible` (dimensão `QueueName`) das filas
@@ -207,14 +218,19 @@ Cada atributo e valor usado nas NRQL foi conferido no código dos produtores (li
 
 | Evento | Atributos usados | Fonte |
 |---|---|---|
-| `SagaOrdemServico` | `ordemServicoId`, `passo`, `resultado`, `compensacao`, `duracaoMs`, `estado`, `motivo` | contrato do plano do OS Service (Task 8) + valores de `PassosSaga` (`resultado = 'CompensacaoFalhou'`) e estados de `OrdemServicoSaga` no `oficina-app` |
+| `SagaOrdemServico` | `ordemServicoId`, `passo`, `resultado`, `compensacao`, `duracaoMs`, `estado`, `motivo` | `PublicadorEventoSagaNewRelic` + valores de `PassosSaga` (`Falha`, `Compensado`, `CompensacaoFalhou`, passo `Cancelamento`) e estados de `OrdemServicoSaga` no `oficina-app` |
 | `PagamentoEvento` | `etapa` (`EstornoFalhou`, `EstornoAutomatico`), `resultado` (`Sucesso`/`Falha`) | `oficina-billing-service`: `TelemetriaPagamentoNewRelic` e casos de uso |
 | `ExecucaoEvento` | `statusNovo` (`Finalizada`…), `resultado`, `duracaoMinutos` | `oficina-execucao-service`: `TelemetriaExecucaoNewRelic`, `StatusExecucao` |
 | `Transaction` | `appName` ∈ `oficina-api`, `oficina-billing`, `oficina-execucao` | `NEW_RELIC_APP_NAME` em `k8s/deployment.yaml` de cada serviço |
 
-> **Atenção:** o publicador do `SagaOrdemServico` (Task 8 do plano do OS Service) ainda não está
-> no `oficina-app`; os nomes vêm do contrato do plano e dos valores já em código. Ao implementá-lo,
-> manter exatamente esses atributos.
+`SagaOrdemServico` traz também `motivo` (razão de negócio, presente em `compensacao = true`,
+`Falha` e `CompensacaoFalhou`) e `detalhe` (`PagamentoId` ou nome do `StatusExecucao`), conforme o
+`PublicadorEventoSagaNewRelic` do `oficina-app`.
+
+> **Verificar após o primeiro deploy:** `SELECT count(*) FROM SagaOrdemServico FACET compensacao SINCE 1 day ago`
+> precisa mostrar `true`/`false` **booleanos**. Se o agente os enviar como string, `compensacao IS true`
+> não casa nada e o dashboard/alerta de compensação ficam mudos — nesse caso, trocar por
+> `compensacao = 'true'`.
 
 ## Decisões e limitações registradas
 

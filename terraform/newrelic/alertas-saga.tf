@@ -4,13 +4,18 @@
 # evento customizado ja e unico da aplicacao.
 # "Fila DLQ com mensagens" NAO esta aqui: e alarme CloudWatch (terraform/alarmes-dlq.tf).
 
-# Compensacao disparada: qualquer passo registrado com compensacao = true (falha que inicia
-# compensacao, cancelamento compensado, estorno). Warning: faz parte do fluxo, mas pede olho.
+# Compensacao disparada = so o INICIO da compensacao. Com compensacao = true o produtor grava o
+# passo que a dispara (resultado 'Falha': GerarOrcamento, AprovarOrcamento, ConfirmarPagamento,
+# EnfileirarExecucao, EstornarPagamento de pagamento tardio) e tambem o desfecho ('Compensado' ou
+# 'CompensacaoFalhou'). O cancelamento pedido pelo atendente e um passo unico (Cancelamento/
+# Compensado: inicio e desfecho juntos). Filtro = Falha OU Cancelamento: um fluxo de estorno gera
+# UM sinal e o Critical de CompensacaoFalhou nao e duplicado. uniqueCount conta sagas, nao linhas.
+# Warning: faz parte do fluxo (ex.: cliente rejeitou o orcamento), mas pede olho.
 resource "newrelic_nrql_alert_condition" "saga_compensacao" {
   policy_id                    = newrelic_alert_policy.oficina_prod.id
   name                         = "Oficina-Saga-Prod-Compensacao-Warning"
   type                         = "static"
-  description                  = "A saga da OS registrou um passo com compensacao = true."
+  description                  = "Uma saga da OS iniciou compensacao (compensacao = true com resultado 'Falha', ou cancelamento)."
   runbook_url                  = "${var.runbook_base_url}#compensacao-da-saga"
   enabled                      = true
   violation_time_limit_seconds = 259200
@@ -19,7 +24,7 @@ resource "newrelic_nrql_alert_condition" "saga_compensacao" {
   aggregation_delay            = 120
 
   nrql {
-    query = "SELECT count(*) FROM SagaOrdemServico WHERE compensacao IS true"
+    query = "SELECT uniqueCount(ordemServicoId) FROM SagaOrdemServico WHERE compensacao IS true AND (resultado = 'Falha' OR passo = 'Cancelamento')"
   }
 
   warning {
@@ -59,6 +64,10 @@ resource "newrelic_nrql_alert_condition" "saga_compensacao_falhou" {
 # Lado do Billing: estorno pedido pela saga que falhou (etapa EstornoFalhou) ou estorno
 # automatico de pagamento tardio/duplicado que falhou (EstornoAutomatico + Falha) — este
 # ultimo nao passa pela saga, entao so este alerta o pega.
+# DECISAO: os dois Criticals ficam separados. Uma falha de estorno pedido pela saga abre DOIS
+# incidentes (CompensacaoFalhou na saga + EstornoFalhou no Billing), o que e esperado e esta
+# documentado no README e no runbook. Fundir perderia o EstornoAutomatico, que nao tem evento
+# de saga.
 resource "newrelic_nrql_alert_condition" "billing_estorno_falhou" {
   policy_id                    = newrelic_alert_policy.oficina_prod.id
   name                         = "Oficina-Billing-Prod-EstornoFalhou-Critical"

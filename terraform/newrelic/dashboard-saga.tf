@@ -1,7 +1,7 @@
 # Fase 4 (design, secao 9): dashboard "Saga da OS". Cada atributo/valor abaixo foi conferido
 # no codigo dos produtores (README, secao "Fase 4 > Observabilidade"):
 #   SagaOrdemServico (oficina-app):     ordemServicoId, numeroOs, passo, resultado, compensacao,
-#                                       duracaoMs, estado, motivo (so quando nao nulo)
+#                                       duracaoMs, estado, motivo (razao de negocio), detalhe (PagamentoId/StatusExecucao)
 #   PagamentoEvento (billing-service):  ordemServicoId, numeroOs, etapa, resultado, gateway, valor?, meio?
 #   ExecucaoEvento (execucao-service):  ordemServicoId, numeroOs, unidade, statusAnterior, statusNovo,
 #                                       resultado, duracaoMinutos?
@@ -20,8 +20,10 @@ resource "newrelic_one_dashboard" "saga" {
 
     # Estado ATUAL de cada saga: o evento grava o estado depois da transicao (Registrar vem
     # apos TransitionTo em OrdemServicoSaga), entao latest(estado) por OS e o estado corrente.
+    # So estados da SAGA (AguardandoOrcamento..Concluida/Cancelada): a entrega da OS (Entregue)
+    # fica fora da saga e nao aparece aqui (ela esta no OrdemServicoEvento, dashboard da Fase 3).
     widget_pie {
-      title  = "Sagas por estado atual (7 dias)"
+      title  = "Sagas por estado atual da saga (7 dias)"
       row    = 1
       column = 1
       width  = 4
@@ -45,26 +47,26 @@ resource "newrelic_one_dashboard" "saga" {
     }
 
     widget_table {
-      title  = "Compensacoes por motivo"
+      title  = "Sagas compensadas por motivo"
       row    = 1
       column = 9
       width  = 4
       height = 3
 
       nrql_query {
-        query = "SELECT count(*) AS 'Compensacoes' FROM SagaOrdemServico WHERE compensacao IS true FACET passo, resultado, motivo SINCE 7 days ago LIMIT 50"
+        query = "SELECT uniqueCount(ordemServicoId) AS 'Sagas' FROM SagaOrdemServico WHERE compensacao IS true FACET motivo SINCE 7 days ago LIMIT 50"
       }
     }
 
     widget_bar {
-      title  = "Tempo por passo (ms): media e p95"
+      title  = "Tempo por passo (s, desde o passo anterior): media e p95"
       row    = 4
       column = 1
       width  = 6
       height = 3
 
       nrql_query {
-        query = "SELECT average(duracaoMs) AS 'media', percentile(duracaoMs, 95) AS 'p95' FROM SagaOrdemServico FACET passo SINCE 1 day ago"
+        query = "SELECT average(duracaoMs) / 1000 AS 'media (s)', percentile(duracaoMs, 95) / 1000 AS 'p95 (s)' FROM SagaOrdemServico FACET passo SINCE 1 day ago"
       }
     }
 
@@ -105,14 +107,14 @@ resource "newrelic_one_dashboard" "saga" {
     }
 
     widget_billboard {
-      title  = "Duracao media da execucao finalizada (min)"
+      title  = "Execucao: da fila a finalizacao (s, media)"
       row    = 10
       column = 1
       width  = 4
       height = 3
 
       nrql_query {
-        query = "SELECT average(duracaoMinutos) AS 'minutos' FROM ExecucaoEvento WHERE statusNovo = 'Finalizada' SINCE 7 days ago"
+        query = "SELECT average(segundos) AS 'segundos' FROM (SELECT sum(duracaoMs) / 1000 AS 'segundos', filter(count(*), WHERE passo = 'FinalizarExecucao') AS 'finalizada' FROM SagaOrdemServico WHERE passo IN ('Execucao', 'FinalizarExecucao') AND resultado = 'Sucesso' FACET ordemServicoId LIMIT MAX) WHERE finalizada > 0 SINCE 7 days ago"
       }
     }
 
@@ -144,7 +146,9 @@ resource "newrelic_one_dashboard" "saga" {
         **Trace distribuido:** o agente .NET instrumenta o MassTransit; uma OS atravessa
         `${var.app_name}` -> SQS -> `${var.app_name_billing}` / `${var.app_name_execucao}` no mesmo trace.
         Abra *APM & Services* -> `${var.app_name}` -> *Distributed tracing* e localize a OS pelo
-        `ordemServicoId` dos eventos acima ou pelo `X-Correlation-Id` dos logs.
+        `ordemServicoId`: os eventos dos tres servicos (SagaOrdemServico, PagamentoEvento,
+        ExecucaoEvento) carregam esse atributo. O `X-Correlation-Id` so vale dentro do OS Service
+        (Billing e Execucao nao o propagam nos eventos que publicam).
 
         **Mapa de servicos:** *APM & Services* -> `${var.app_name}` -> *Service map*.
 
