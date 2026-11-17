@@ -75,7 +75,10 @@ fi
 # ---------- 4. role oficina-gha-infra ----------
 SUBS=()
 for repo in "${REPOS_INFRA[@]}"; do
-  SUBS+=("\"repo:${GITHUB_OWNER}/${repo}:ref:refs/heads/main\"" "\"repo:${GITHUB_OWNER}/${repo}:ref:refs/heads/develop\"")
+  for branch in main develop; do
+    # Formato classico e formato imutavel (owner@id/repo@id, use_immutable_subject do GitHub).
+    SUBS+=("\"repo:${GITHUB_OWNER}/${repo}:ref:refs/heads/${branch}\"" "\"repo:${GITHUB_OWNER}@*/${repo}@*:ref:refs/heads/${branch}\"")
+  done
 done
 SUBS_JSON=$(IFS=,; echo "${SUBS[*]}")
 
@@ -88,7 +91,9 @@ TRUST=$(cat <<JSON
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+      },
+      "StringLike": {
         "token.actions.githubusercontent.com:sub": [${SUBS_JSON}]
       }
     }
