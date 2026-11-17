@@ -1,6 +1,6 @@
 # EKS via modulo oficial v20 (access entries nativos, sem aws-auth). Migrado da Fase 2.
 locals {
-  politica_admin_cluster = "arn:aws:iam::aws:policy/AmazonEKSClusterAdminPolicy"
+  politica_admin_cluster = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 
   # Decisao D8: acesso deterministico. Nada de "creator admin" (dependeria de QUEM fez o
   # primeiro apply). gha-infra aplica este repo (e precisa do acesso para os helm_release);
