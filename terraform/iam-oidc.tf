@@ -108,7 +108,8 @@ data "aws_iam_policy_document" "deploy" {
     resources = ["*"]
   }
 
-  # Exatamente os tres parametros que o cd.yml do oficina-app le.
+  # Os tres parametros da Fase 3 que o cd.yml do oficina-app le, mais /oficina/os-service/*
+  # (Fase 4: irsa_role_arn publicado pelo terraform/ do proprio oficina-app).
   statement {
     sid     = "SsmLeitura"
     effect  = "Allow"
@@ -117,6 +118,7 @@ data "aws_iam_policy_document" "deploy" {
       "arn:aws:ssm:${var.region}:${local.conta}:parameter/${var.project}/ecr/repository_url",
       "arn:aws:ssm:${var.region}:${local.conta}:parameter/${var.project}/eks/cluster_name",
       "arn:aws:ssm:${var.region}:${local.conta}:parameter/${var.project}/db/endpoint",
+      "arn:aws:ssm:${var.region}:${local.conta}:parameter/${var.project}/os-service/*",
     ]
   }
 

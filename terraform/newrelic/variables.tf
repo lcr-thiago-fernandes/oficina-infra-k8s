@@ -31,3 +31,16 @@ variable "runbook_base_url" {
   type        = string
   default     = "https://github.com/lcr-thiago-fernandes/oficina-infra-k8s/blob/main/docs/runbooks.md"
 }
+
+# --- Fase 4: nomes no APM dos servicos novos (NEW_RELIC_APP_NAME de cada k8s/deployment.yaml) ---
+variable "app_name_billing" {
+  description = "Nome da aplicacao no APM do Billing Service (oficina-billing-service/k8s/deployment.yaml)."
+  type        = string
+  default     = "oficina-billing"
+}
+
+variable "app_name_execucao" {
+  description = "Nome da aplicacao no APM do Execucao Service (oficina-execucao-service/k8s/deployment.yaml)."
+  type        = string
+  default     = "oficina-execucao"
+}

@@ -16,6 +16,12 @@ Complementa `oficina-app/docs/contratos-entre-repositorios.md` (seções 2, 3, 4
 | `/oficina/apigw/vpc_link_integration_id` | String | id da integração HTTP_PROXY via VPC Link (listener **prd**) **com** o mapeamento de contexto (`X-Perfil`/`X-Sub`/`X-Documento`); há uma segunda integração, sem mapeamento, usada pelas rotas públicas | lambda-auth (alvo de `ANY /api/v1/{proxy+}`) |
 | `/oficina/eks/cluster_name` | String | `oficina-eks` | CD do oficina-app |
 | `/oficina/ecr/repository_url` | String | URL completa do ECR | CD do oficina-app |
+| `/oficina/eks/oidc_provider_arn` | String | ARN do OIDC provider do EKS (Fase 4) | terraform/ de oficina-app, billing, execução (trust IRSA) |
+| `/oficina/eks/oidc_provider_url` | String | issuer do EKS **sem** `https://` (Fase 4) | idem (chaves `:sub`/`:aud`) |
+| `/oficina/nlb/arn` | String | ARN do NLB interno (Fase 4) | billing, execução (listeners próprios) |
+| `/oficina/nlb/security_group_id` | String | SG do NLB (Fase 4) | billing, execução |
+| `/oficina/apigw/vpc_link_security_group_id` | String | SG do VPC Link (Fase 4) | billing, execução |
+| `/oficina/eks/node_asg_names` | **StringList** | ASGs dos node groups, separados por vírgula (Fase 4) | billing, execução (`aws_autoscaling_attachment`) |
 
 ## O que este repositório CRIA no Secrets Manager (texto puro, nunca JSON)
 
@@ -30,8 +36,8 @@ Complementa `oficina-app/docs/contratos-entre-repositorios.md` (seções 2, 3, 4
 
 | Role | Criada por | Assumida por | Vira |
 |---|---|---|---|
-| `oficina-gha-infra` | `scripts/bootstrap.sh` | `oficina-infra-k8s`, `oficina-infra-db` (`main`, `develop`) | secret `AWS_TERRAFORM_ROLE_ARN` nos dois |
-| `oficina-gha-deploy` | Terraform daqui | `oficina-app` (`main`, `develop`) | secret `AWS_DEPLOY_ROLE_ARN` |
+| `oficina-gha-infra` | `scripts/bootstrap.sh` | `REPOS_INFRA`: `oficina-infra-k8s`, `oficina-infra-db` e, na Fase 4, `oficina-app`, `oficina-billing-service`, `oficina-execucao-service` (`main`, `develop`) | secret `AWS_TERRAFORM_ROLE_ARN` em cada um |
+| `oficina-gha-deploy` | Terraform daqui | `oficina-app` (`main`, `develop`); lê também `/oficina/os-service/*` (Fase 4) | secret `AWS_DEPLOY_ROLE_ARN` |
 | `oficina-gha-lambda` | Terraform daqui | `oficina-lambda-auth` (`main`, `develop`) | secret `AWS_LAMBDA_ROLE_ARN` |
 
 Trust escopada por branch: o `sub` de `pull_request` **não** assume nenhuma delas.
@@ -42,11 +48,15 @@ Trust escopada por branch: o `sub` de `pull_request` **não** assume nenhuma del
 |---|---|---|
 | `GET /health` | **este repo** | — |
 | `GET /swagger`, `GET /swagger/{proxy+}` | **este repo** | — |
-| `POST /api/v1/ordens-servico/{id}/orcamento/aprovacao` | **este repo** | — (webhook protegido por `X-Webhook-Token` na API) |
 | `POST /auth/cliente`, `POST /auth/admin` | oficina-lambda-auth | — |
 | `ANY /api/v1/{proxy+}` | oficina-lambda-auth | Lambda Authorizer |
+| `/billing/*` (`ANY /billing/api/v1/{proxy+}`, `POST /billing/webhooks/mercadopago`, health, swagger) | oficina-billing-service (Fase 4) | Authorizer só na `api/v1` |
+| `/execucao/*` (`ANY /execucao/api/v1/{proxy+}`, health, swagger) | oficina-execucao-service (Fase 4) | Authorizer só na `api/v1` |
 
-Este repositório **não** cria as três últimas. Duas `route_key` iguais em states diferentes
+Fase 4: a rota pública `POST /api/v1/ordens-servico/{id}/orcamento/aprovacao` foi **removida** (o
+webhook passou para o Billing).
+
+Este repositório **não** cria as rotas de `/auth/*`, `ANY /api/v1/{proxy+}`, `/billing/*` nem `/execucao/*`. Duas `route_key` iguais em states diferentes
 dão `ConflictException`.
 
 ## Throttling de `POST /auth/*` — requisito do lambda-auth, com uma ressalva (D1)
